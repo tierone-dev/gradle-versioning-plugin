@@ -21,7 +21,7 @@ class VersioningExtension {
 
     private static final Map<String, Closure<String>> RELEASE_MODES = [
             tag : { nextTag, lastTag, currentTag, extension ->
-                lastTag
+                currentTag == null ? nextTag : currentTag
             },
             snapshot: { nextTag, lastTag, currentTag, extension ->
                 currentTag ?: "${nextTag}${extension.snapshot}"
@@ -155,7 +155,7 @@ class VersioningExtension {
                 branchId: versionBranchId,
                 full: versionFull,
                 base: versionBase,
-                display: versionDisplay,
+                display: display(versionDisplay),
                 commit: scmInfo.commit,
                 build: scmInfo.abbreviated,
                 tag: scmInfo.tag,
@@ -183,7 +183,7 @@ class VersioningExtension {
                 lastTag = ''
                 nextTag = "${releaseInfo.base}.0"
             } else {
-                lastTag = baseTags[0].trim().replace('v','')
+                lastTag = display(baseTags[0])
                 def lastNumber = (lastTag =~ /${releaseInfo.base}\.(\d+)/)[0][1] as int
                 def newNumber = lastNumber + 1
                 nextTag = "${releaseInfo.base}.${newNumber}"
@@ -205,6 +205,10 @@ class VersioningExtension {
 
     public static String normalise(String value) {
         value.replaceAll(/[^A-Za-z0-9\.\-_]/, '-')
+    }
+    
+    private static String display(String value) {
+    	value.trim().replace('v','')
     }
 
 }
