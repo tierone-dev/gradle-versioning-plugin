@@ -109,7 +109,7 @@ class GitInfoService implements SCMInfoService {
 
     static boolean isGitTreeDirty(File dir) {// Open the Git repo
         //noinspection GroovyAssignabilityCheck
-        Status status = Grgit.open(currentDir: dir).status()
+        Status status = Grgit.open(dir: dir).status()
         return !isClean(status)
     }
 
