@@ -1,14 +1,11 @@
-package net.nemerosa.versioning.tasks
+package com.t1c.gradle.versioning.tasks
 
-import net.nemerosa.versioning.VersionInfo
+import com.t1c.gradle.versioning.VersionInfo
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.TaskAction
 
 class VersionDisplayTask extends DefaultTask {
 
-    /**
-     * Sets a description
-     */
     VersionDisplayTask() {
         group = "Versioning"
         description = "Writes version information on the standard output."

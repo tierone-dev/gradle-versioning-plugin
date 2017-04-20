@@ -1,11 +1,12 @@
-package net.nemerosa.versioning.git
+package com.t1c.gradle.versioning.git
 
-import net.nemerosa.versioning.SCMInfo
-import net.nemerosa.versioning.SCMInfoService
-import net.nemerosa.versioning.VersioningExtension
+import com.t1c.gradle.versioning.SCMInfo
+import com.t1c.gradle.versioning.SCMInfoService
+import com.t1c.gradle.versioning.VersioningExtension
 import org.ajoberstar.grgit.Commit
 import org.ajoberstar.grgit.Grgit
 import org.ajoberstar.grgit.Status
+import org.ajoberstar.grgit.Tag
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Ref
@@ -18,55 +19,38 @@ class GitInfoService implements SCMInfoService {
 
     @Override
     SCMInfo getInfo(Project project, VersioningExtension extension) {
-        // Is Git enabled?
+        
         boolean hasGit = project.rootProject.file('.git').exists() ||
                 project.file('.git').exists() ||
                 (extension.gitRepoRootDir != null &&
                         new File(extension.gitRepoRootDir, '.git').exists())
-        // No Git information
+        
         if (!hasGit) {
             SCMInfo.NONE
-        }
-        // Git information available
-        else {
-            // Git directory
-            File gitDir = getGitDirectory(extension, project)
-            // Open the Git repo
+        } else {
+            File gitDir = extension.gitRepoRootDir ?
+                new File(extension.gitRepoRootDir) :
+                project.projectDir
+
             //noinspection GroovyAssignabilityCheck
             def grgit = Grgit.open(currentDir: gitDir)
 
-            // Check passed in environment variable list
-            String branch = null
-            for (ev in extension.branchEnv) {
-                if (System.env[ev] != null) {
-                    branch = System.env[ev]
-                    break
-                }
-            }
-            // Gets the branch info from git
-            if (branch == null) {
-                branch = grgit.branch.current.name
-            }
+            String branch = grgit.branch.current.name
 
-            // Gets the commit info (full hash)
             List<Commit> commits = grgit.log(maxCommits: 1)
             if (commits.empty) {
                 throw new GradleException("No commit available in the repository - cannot compute version")
             }
 
             def lastCommit = commits[0]
-            // Full commit hash
             String commit = lastCommit.id
-            // Gets the current commit (short hash)
             String abbreviated = lastCommit.abbreviatedId
-            // Is the repository shallow?
             boolean shallow = lastCommit.parentIds.empty
 
-            // Gets the current tag, if any
             String tag
+            
             // Cannot use the `describe` command if the repository is shallow
             if (shallow) {
-                // Map of tags
                 Map<ObjectId, Ref> tags = new HashMap<ObjectId, Ref>();
 
                 def gitRepository = grgit.repository.jgit.repository
@@ -94,22 +78,18 @@ class GitInfoService implements SCMInfoService {
                     if (m.matches()) {
                         def count = m.group(2) as int
                         if (count == 0) {
-                            // We're on a tag
                             tag = m.group(1)
                         } else {
-                            // No tag
                             tag = null
                         }
                     } else {
                         throw new GradleException("Cannot get parse description of current commit: ${described}")
                     }
-                } else {
-                    // Nothing returned - it means there is no previous tag
+                } else {// no previous tags
                     tag = null
                 }
             }
 
-            // Returns the information
             new SCMInfo(
                     branch: branch,
                     commit: commit,
@@ -121,12 +101,6 @@ class GitInfoService implements SCMInfoService {
         }
     }
 
-    /**
-     * Gets the actual Git working directory to use.
-     * @param extension Extension of the plugin
-     * @param project Project
-     * @return Directory to use
-     */
     protected static File getGitDirectory(VersioningExtension extension, Project project) {
         return extension.gitRepoRootDir ?
                 new File(extension.gitRepoRootDir) :
@@ -146,21 +120,15 @@ class GitInfoService implements SCMInfoService {
 
     @Override
     List<String> getBaseTags(Project project, VersioningExtension extension, String base) {
-        // Filtering on patterns
-        def baseTagPattern = /^${base}\.(\d+)$/
-        // Git access
+    	def baseTagPattern = /^v${base}\.(\d+)$/
         //noinspection GroovyAssignabilityCheck
         def grgit = Grgit.open(currentDir: getGitDirectory(extension, project))
-        // List all tags
         return grgit.tag.list()
-        // ... filters using the pattern
                 .findAll { it.name ==~ baseTagPattern }
-        // ... sort by desc commit time
                 .sort { -it.commit.time }
         // ... (#36) commit time is not enough. We have also to consider the case where several pattern compliant tags
-        // ...       are on the same commit, and we must sort them by desc version
-                .sort { -((it.name - "${base}.") as int) }
-        // ... gets their name only
+		//are on the same commit, and we must sort them by desc version
+                .sort { -((it.name - "v${base}.") as int) }
                 .collect { it.name }
     }
 

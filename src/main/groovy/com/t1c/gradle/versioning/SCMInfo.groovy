@@ -1,4 +1,4 @@
-package net.nemerosa.versioning
+package com.t1c.gradle.versioning
 
 import groovy.transform.Canonical
 

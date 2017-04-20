@@ -1,4 +1,4 @@
-package net.nemerosa.versioning
+package com.t1c.gradle.versioning
 
 import org.gradle.api.Project
 
@@ -9,4 +9,5 @@ interface SCMInfoService {
     List<String> getBaseTags(Project project, VersioningExtension extension, String base)
 
     String getBranchTypeSeparator()
+
 }

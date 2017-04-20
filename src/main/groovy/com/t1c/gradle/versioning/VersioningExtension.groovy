@@ -1,27 +1,15 @@
-package net.nemerosa.versioning
+package com.t1c.gradle.versioning
 
-import net.nemerosa.versioning.git.GitInfoService
-import net.nemerosa.versioning.support.DirtyException
-import net.nemerosa.versioning.svn.SVNInfoService
+import com.t1c.gradle.versioning.git.GitInfoService
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 
 class VersioningExtension {
 
-    /**
-     * Registry of SCM info services
-     */
-    private static final Map<String, SCMInfoService> INFO_SERVICES = [
-            git: new GitInfoService(),
-            svn: new SVNInfoService(),
-    ]
-
-    /**
-     * Registry of display modes
-     */
     private static final Map<String, Closure<String>> DISPLAY_MODES = [
             full    : { branchType, branchId, base, build, full, extension ->
-                "${branchId}-${build}"
+                //"${branchId}-${build}"
+                "${branchId}"
             },
             snapshot: { branchType, branchId, base, build, full, extension ->
                 "${base}${extension.snapshot}"
@@ -31,9 +19,6 @@ class VersioningExtension {
             },
     ]
 
-    /**
-     * Registry of release modes
-     */
     private static final Map<String, Closure<String>> RELEASE_MODES = [
             tag : { nextTag, lastTag, currentTag, extension ->
                 nextTag
@@ -43,26 +28,7 @@ class VersioningExtension {
             },
     ]
 
-    /**
-     * Version SCM - git by default
-     */
-    String scm = 'git'
-
-    /**
-     * Allow setting the root git repo directory for non conventional git/gradle setups.
-     * This is the path to the root directory that contains the .git folder. This
-     * is used to validate if the current project is a git repository.
-     *
-     */
     String gitRepoRootDir = null
-
-    /**
-     * Fetch the branch from environment variable if available.
-     *
-     * By default, the environment is not taken into account, in order to be backward compatible
-     * with existing build systems.
-     */
-    List branchEnv = []
 
     /**
      * Getting the version type from a branch. Default: getting the part before the first "/" (or a second
@@ -79,70 +45,23 @@ class VersioningExtension {
         new ReleaseInfo(type: part[0], base: part[1])
     }
 
-    /**
-     * Computes the full version.
-     */
     Closure<String> full = { SCMInfo scmInfo -> "${normalise(scmInfo.branch)}-${scmInfo.abbreviated}" }
 
-    /**
-     * Set of eligible branch types for computing a display version from the branch base name
-     */
+    // Set of eligible branch types for computing a display version from the branch base name
     Set<String> releases = ['release'] as Set<String>
 
-    /**
-     * Display mode
-     */
     def displayMode = 'full'
-
-    /**
-     * Release mode
-     */
     def releaseMode = 'tag'
-
-    /**
-     * Default Snapshot extension
-     */
     String snapshot = '-SNAPSHOT'
 
-    /**
-     * Dirty mode.
-     *
-     * Closure that takes a version (<i>display</i> or <i>full</i>) and processes it to produce a <i>dirty</i>
-     * indicator. By default, it appends the {@link #dirtySuffix} value to the version.
-     */
     Closure<String> dirty = { version -> "${version}${dirtySuffix}" }
-
-    /**
-     * Default dirty suffix
-     */
     String dirtySuffix = '-dirty'
 
-    /**
-     * If set to <code>true</code>, the build will fail if working copy is dirty and if the branch type is
-     * part of the {@link #releases} list ("release" only by default).
-     */
+	// If set to <code>true</code>, the build will fail if working copy is dirty and if the branch type is
+	// part of the {@link #releases} list ("release" only by default).
     boolean dirtyFailOnReleases = false
 
-    /**
-     * If set to <code>true</code>, no warning will be printed in case the workspace is dirty.
-     */
     boolean noWarningOnDirty = false;
-
-    /**
-     * Credentials (for SVN only)
-     */
-    String user = ''
-
-    /**
-     * Credentials (for SVN only)
-     */
-    String password = ''
-
-    /**
-     * Certificate - accept SSL server certificates from unknown certificate authorities (for SVN only)
-     */
-    @Deprecated
-    boolean trustServerCert = false
 
     /**
      * Computed version information
@@ -161,9 +80,7 @@ class VersioningExtension {
     VersioningExtension(Project project) {
         this.project = project
     }
-/**
- * Gets the computed version information
- */
+
     VersionInfo getInfo() {
         if (!info) {
             info = computeInfo()
@@ -176,12 +93,9 @@ class VersioningExtension {
      */
     VersionInfo computeInfo() {
 
-        // Gets the SCM info service
-        SCMInfoService scmInfoService = getSCMInfoService(scm)
-        // Gets the version source
+        SCMInfoService scmInfoService = new GitInfoService()
         SCMInfo scmInfo = scmInfoService.getInfo(project, this)
 
-        // No info?
         if (scmInfo == SCMInfo.NONE) {
             return VersionInfo.NONE
         }
@@ -224,7 +138,7 @@ class VersioningExtension {
         // Dirty update
         if (scmInfo.dirty) {
             if (dirtyFailOnReleases && versionReleaseType in releases) {
-                throw new DirtyException()
+                throw new GradleException("Dirty working copy - cannot compute version.")
             } else {
                 if (!noWarningOnDirty) {
                     println "[versioning] WARNING - the working copy has unstaged or uncommitted changes."
@@ -234,9 +148,8 @@ class VersioningExtension {
             }
         }
 
-        // OK
         new VersionInfo(
-                scm: scm,
+                scm: 'git',
                 branch: scmInfo.branch,
                 branchType: versionReleaseType,
                 branchId: versionBranchId,
@@ -260,8 +173,7 @@ class VersioningExtension {
                 // The only special case is when the HEAD commit is exactly on a tag and we can use it
                 return currentTag
             } else {
-                // In any other case, we can only start from the base information
-                // and add a snapshot information
+                // In any other case, we can only start from the base information and add a snapshot information
                 return "${releaseInfo.base}${snapshot}"
             }
         } else {
@@ -295,12 +207,4 @@ class VersioningExtension {
         value.replaceAll(/[^A-Za-z0-9\.\-_]/, '-')
     }
 
-    private static SCMInfoService getSCMInfoService(String type) {
-        SCMInfoService scmInfoService = INFO_SERVICES[type]
-        if (scmInfoService) {
-            return scmInfoService
-        } else {
-            throw new GradleException("Unknown SCM info service: ${type}")
-        }
-    }
 }
