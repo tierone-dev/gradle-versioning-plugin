@@ -21,7 +21,7 @@ class VersioningExtension {
 
     private static final Map<String, Closure<String>> RELEASE_MODES = [
             tag : { nextTag, lastTag, currentTag, extension ->
-                nextTag
+                lastTag
             },
             snapshot: { nextTag, lastTag, currentTag, extension ->
                 currentTag ?: "${nextTag}${extension.snapshot}"
@@ -183,7 +183,7 @@ class VersioningExtension {
                 lastTag = ''
                 nextTag = "${releaseInfo.base}.0"
             } else {
-                lastTag = baseTags[0].trim()
+                lastTag = baseTags[0].trim().replace('v','')
                 def lastNumber = (lastTag =~ /${releaseInfo.base}\.(\d+)/)[0][1] as int
                 def newNumber = lastNumber + 1
                 nextTag = "${releaseInfo.base}.${newNumber}"
